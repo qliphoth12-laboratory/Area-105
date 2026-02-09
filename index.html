@@ -696,46 +696,66 @@
                 }
             }
 
-            function formatPersonnelId(raw) {
-                // เก็บเฉพาะ A-Z 0-9 และทำเป็นตัวใหญ่
-                const s = (raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+            function formatPersonnelIdWithCaret(raw, caretPos) {
+                // 1) นับจำนวน A-Z0-9 ก่อน caret (เพื่อ map caret หลัง format)
+                const before = (raw.slice(0, caretPos) || "")
+                    .toUpperCase()
+                    .replace(/[^A-Z0-9]/g, "");
+                const keyCount = before.length;
 
-                // จำกัดความยาวรวมแบบ(A105 + dept 4 + digits 4 = 12)
-                const trimmed = s.slice(0, 12);
+                // 2) ทำความสะอาดค่าทั้งหมด
+                const s = (raw || "")
+                    .toUpperCase()
+                    .replace(/[^A-Z0-9]/g, "")
+                    .slice(0, 12); // prefix 4 + dept 4 + digits 4
 
-                // แบ่ง: prefix(4) + remainder
-                const prefix = trimmed.slice(0, 4);
-                const rest = trimmed.slice(4);
+                const prefix = s.slice(0, 4);
+                const rest = s.slice(4);
 
-                // หา index ตัวเลขตัวแรกในส่วน remainder เพื่อแยก dept กับ digits
+                // แยก dept (ตัวอักษร/เลขได้ แต่หยุดเมื่อเจอตัวเลขตัวแรก) + digits
                 const firstDigitIdx = rest.search(/[0-9]/);
+
                 let dept = "";
                 let digits = "";
 
                 if (firstDigitIdx === -1) {
-                    dept = rest.slice(0, 4); // ยังไม่มีเลข -> ถือว่าเป็น dept ไปก่อน (max 4)
+                    dept = rest.slice(0, 4);
                 } else {
                     dept = rest.slice(0, firstDigitIdx).slice(0, 4);
                     digits = rest.slice(firstDigitIdx).replace(/[^0-9]/g, "").slice(0, 4);
                 }
-                // สร้างผลลัพธ์แบบ auto "-"
+
+                // 3) ประกอบผลลัพธ์: เติม "-" เฉพาะเมื่อจำเป็น
+                // - หลัง prefix: เมื่อมี dept หรือ digits
+                // - ระหว่าง dept กับ digits: เฉพาะเมื่อ digits มีจริง (แก้บัค A105-AAAA-)
                 let out = prefix;
                 if (prefix.length === 4 && (dept.length > 0 || digits.length > 0)) out += "-";
                 out += dept;
-                if (dept.length > 0 && (digits.length > 0 || dept.length === 4)) out += "-";
-                out += digits;
+                if (digits.length > 0) out += "-" + digits;
 
-                return out;
+                // 4) map caret: วาง caret หลัง “จำนวน keyCount ตัว” (A-Z0-9) ในข้อความที่ฟอร์แมตแล้ว
+                let newCaret = 0;
+                let seen = 0;
+                for (let i = 0; i < out.length; i++) {
+                    if (/[A-Z0-9]/.test(out[i])) seen++;
+                    if (seen >= keyCount) { newCaret = i + 1; break; }
+                }
+                if (keyCount === 0) newCaret = 0;
+                if (keyCount > seen) newCaret = out.length;
+
+                return { value: out, caret: newCaret };
             }
 
-            // ทำ auto "-" + uppercase ระหว่างพิมพ์
             input.addEventListener("input", () => {
-                const formatted = formatPersonnelId(input.value);
-                if (input.value !== formatted) {
-                    input.value = formatted;
-                    input.setSelectionRange(input.value.length, input.value.length);
+                const caretPos = input.selectionStart ?? input.value.length;
+                const { value, caret } = formatPersonnelIdWithCaret(input.value, caretPos);
+
+                if (input.value !== value) {
+                    input.value = value;
+                    input.setSelectionRange(caret, caret);
                 }
             });
+
 
 
             form.addEventListener("submit", function (e) {
@@ -747,7 +767,6 @@
 
                 const value = (input.value || "").trim();
                 successText.style.display = "none";
-
                 // 1) ยังไม่กรอก
                 if (!value) {
                     showError(
@@ -759,7 +778,7 @@
                 }
 
                 // 2) ตรวจรูปแบบ A105-XX-0000
-                const pattern = /^A105-[A-Z0-9]{2,4}-\d{4}$/i;
+                const pattern = /^[A-Z0-9]{4,5}-[A-Z0-9]{2,4}-\d{4}$/i;
 
                 if (!pattern.test(value)) {
                     showError(
