@@ -696,6 +696,48 @@
                 }
             }
 
+            function formatPersonnelId(raw) {
+                // เก็บเฉพาะ A-Z 0-9 และทำเป็นตัวใหญ่
+                const s = (raw || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+                // จำกัดความยาวรวมแบบ(A105 + dept 4 + digits 4 = 12)
+                const trimmed = s.slice(0, 12);
+
+                // แบ่ง: prefix(4) + remainder
+                const prefix = trimmed.slice(0, 4);
+                const rest = trimmed.slice(4);
+
+                // หา index ตัวเลขตัวแรกในส่วน remainder เพื่อแยก dept กับ digits
+                const firstDigitIdx = rest.search(/[0-9]/);
+                let dept = "";
+                let digits = "";
+
+                if (firstDigitIdx === -1) {
+                    dept = rest.slice(0, 4); // ยังไม่มีเลข -> ถือว่าเป็น dept ไปก่อน (max 4)
+                } else {
+                    dept = rest.slice(0, firstDigitIdx).slice(0, 4);
+                    digits = rest.slice(firstDigitIdx).replace(/[^0-9]/g, "").slice(0, 4);
+                }
+                // สร้างผลลัพธ์แบบ auto "-"
+                let out = prefix;
+                if (prefix.length === 4 && (dept.length > 0 || digits.length > 0)) out += "-";
+                out += dept;
+                if (dept.length > 0 && (digits.length > 0 || dept.length === 4)) out += "-";
+                out += digits;
+
+                return out;
+            }
+
+            // ทำ auto "-" + uppercase ระหว่างพิมพ์
+            input.addEventListener("input", () => {
+                const formatted = formatPersonnelId(input.value);
+                if (input.value !== formatted) {
+                    input.value = formatted;
+                    input.setSelectionRange(input.value.length, input.value.length);
+                }
+            });
+
+
             form.addEventListener("submit", function (e) {
                 e.preventDefault();
 
