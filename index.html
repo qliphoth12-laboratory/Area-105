@@ -698,13 +698,13 @@
 
             function formatPersonnelIdWithCaret(raw, caretPos) {
                 // 1) นับจำนวน A-Z0-9 ก่อน caret (เพื่อ map caret หลัง format)
-                const before = (raw.slice(0, caretPos) || "")
+                const before = (String(raw).slice(0, caretPos) || "")
                     .toUpperCase()
                     .replace(/[^A-Z0-9]/g, "");
                 const keyCount = before.length;
 
                 // 2) ทำความสะอาดค่าทั้งหมด
-                const s = (raw || "")
+                const s = String(raw || "")
                     .toUpperCase()
                     .replace(/[^A-Z0-9]/g, "")
                     .slice(0, 12); // prefix 4 + dept 4 + digits 4
@@ -726,8 +726,6 @@
                 }
 
                 // 3) ประกอบผลลัพธ์: เติม "-" เฉพาะเมื่อจำเป็น
-                // - หลัง prefix: เมื่อมี dept หรือ digits
-                // - ระหว่าง dept กับ digits: เฉพาะเมื่อ digits มีจริง (แก้บัค A105-AAAA-)
                 let out = prefix;
                 if (prefix.length === 4 && (dept.length > 0 || digits.length > 0)) out += "-";
                 out += dept;
@@ -746,15 +744,88 @@
                 return { value: out, caret: newCaret };
             }
 
-            input.addEventListener("input", () => {
-                const caretPos = input.selectionStart ?? input.value.length;
-                const { value, caret } = formatPersonnelIdWithCaret(input.value, caretPos);
+            function smartDeleteDash(input) {
+                const v = input.value || "";
+                const start = input.selectionStart ?? 0;
+                const end = input.selectionEnd ?? 0;
+                if (start !== end) return false;          // ไม่ยุ่งถ้ามี selection
+                if (start <= 0) return false;
+                if (v[start - 1] !== "-") return false;
 
-                if (input.value !== value) {
-                    input.value = value;
-                    input.setSelectionRange(caret, caret);
+                input.value = v.slice(0, start - 1) + v.slice(start);
+                try { input.setSelectionRange(start - 1, start - 1); } catch (_) { }
+                return true;
+            }
+
+
+            function bindPersonnelIdAutoFormat(input) {
+                let isComposing = false;
+                let applying = false; // กัน loop บาง browser
+
+                function applyNow() {
+                    if (applying) return;
+                    applying = true;
+
+                    const raw = input.value || "";
+                    const caretPos = input.selectionStart ?? raw.length;
+                    const { value, caret } = formatPersonnelIdWithCaret(raw, caretPos);
+
+                    if (raw !== value) {
+                        input.value = value;
+                        try { input.setSelectionRange(caret, caret); } catch (_) { }
+                    }
+
+                    applying = false;
                 }
-            });
+
+                input.addEventListener("compositionstart", () => {
+                    isComposing = true;
+                });
+
+                input.addEventListener("compositionend", () => {
+                    isComposing = false;
+                    setTimeout(() => { applyNow(); }, 0);
+                });
+
+                input.addEventListener("beforeinput", (e) => {
+                    if (isComposing) return;
+
+                    if (e.inputType === "deleteContentBackward") {
+                        // ถ้าเจอ '-' ให้ลบเอง แล้วค่อย format
+                        const did = smartDeleteDash(input);
+                        if (did) {
+                            e.preventDefault?.();
+                            // defer 1 tick ให้ browser settle selection
+                            setTimeout(() => { applyNow(); }, 0);
+                        }
+                    }
+                });
+
+                input.addEventListener("keydown", (e) => {
+                    if (isComposing) return;
+                    if (e.key !== "Backspace") return;
+                    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+                    const did = smartDeleteDash(input);
+                    if (did) {
+                        e.preventDefault();
+                        applyNow();
+                    }
+                });
+
+                input.addEventListener("input", () => {
+                    if (isComposing) return;
+                    setTimeout(() => { applyNow(); }, 0);
+                });
+
+                input.addEventListener("blur", () => {
+                    if (isComposing) return;
+                    applyNow();
+                });
+
+                applyNow();
+            }
+            bindPersonnelIdAutoFormat(input);
 
 
 
