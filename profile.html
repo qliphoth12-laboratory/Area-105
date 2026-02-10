@@ -65,7 +65,7 @@
         }
 
         /* Hero header */
-       .hero-header {
+        .hero-header {
             position: relative;
             overflow: hidden;
             border-bottom: 1px solid var(--border-soft);
@@ -82,10 +82,12 @@
 
             z-index: 0;
         }
+
         .hero-header>* {
             position: relative;
             z-index: 1;
         }
+
         @media (prefers-reduced-motion: reduce) {
             .hero-header::before {
                 transform: none;
@@ -1074,7 +1076,7 @@
                 });
         });
     </script>
-       <script>
+    <script>
         (() => {
             const hero = document.querySelector(".hero-header");
             if (!hero) return;
@@ -1094,8 +1096,10 @@
                 const t = (vh - r.top) / (vh + r.height);
                 const clamped = Math.max(0, Math.min(1, t));
 
-                const strength = 308; // มากขึ้น = parallax แรงขึ้น
-                const y = ((clamped - 0.5) * strength) - 50;
+                const strength = 308;
+                const offset = window.matchMedia("(max-width: 1070px)").matches ? -100 : -50;
+                
+                const y = ((clamped - 0.5) * strength) + offset;
 
                 hero.style.setProperty("--pY", y.toFixed(2) + "px");
             }
